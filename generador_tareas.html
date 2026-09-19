@@ -1,0 +1,498 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Generador de tareas de deducción natural</title>
+<style>
+:root{
+  --bg:#f5f5f7; --panel:#fff; --text:#171717; --muted:#6b7280;
+  --line:#d8dbe1; --accent:#1f6feb; --accent2:#1558b0; --warn:#9a6700;
+  --danger:#b42318; --ok:#087f5b;
+}
+*{box-sizing:border-box}
+body{
+  margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  background:var(--bg); color:var(--text);
+}
+.app{max-width:1100px;margin:28px auto;padding:0 18px 40px}
+h1{font-size:28px;margin:0 0 18px}
+h2{font-size:17px;margin:0 0 12px}
+.panel{
+  background:var(--panel); border:1px solid var(--line); border-radius:14px;
+  padding:16px; margin-bottom:14px; box-shadow:0 1px 2px rgba(0,0,0,.03);
+}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+label{font-size:14px}
+input[type="text"],input[type="number"],select{
+  border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:#fff;
+  font:inherit;min-height:38px
+}
+input[type="text"]{width:100%}
+button{
+  border:1px solid var(--line); background:#fff; padding:9px 13px;border-radius:9px;
+  font:inherit;cursor:pointer
+}
+button.primary{background:var(--accent);color:white;border-color:var(--accent)}
+button.primary:hover{background:var(--accent2)}
+button:disabled{opacity:.55;cursor:not-allowed}
+.small{font-size:13px;color:var(--muted)}
+.status{font-size:13px;margin-top:8px}
+.status.ok{color:var(--ok)} .status.warn{color:var(--warn)} .status.err{color:var(--danger)}
+.dist{
+  display:grid;grid-template-columns:repeat(5,minmax(90px,1fr));gap:8px;margin-top:8px
+}
+.dist .cell{border:1px solid var(--line);border-radius:10px;padding:10px;text-align:center}
+.dist input{width:64px;text-align:center}
+.notation{
+  display:grid;grid-template-columns:repeat(6,minmax(100px,1fr));gap:8px
+}
+.notation input{width:100%;text-align:center}
+.preview{
+  background:white;border:1px solid var(--line);border-radius:12px;padding:24px;min-height:280px
+}
+.sheet-title{font-size:20px;font-weight:700;margin-bottom:18px}
+.meta-line{margin:6px 0}
+.ex{margin:20px 0;font-size:18px}
+.hidden{display:none}
+hr{border:none;border-top:1px solid var(--line);margin:14px 0}
+details summary{cursor:pointer;font-weight:600}
+.file-fallback{margin-top:10px}
+@media(max-width:800px){
+  .grid2{grid-template-columns:1fr}
+  .dist{grid-template-columns:repeat(2,1fr)}
+  .notation{grid-template-columns:repeat(2,1fr)}
+}
+@media print{
+  body{background:white}
+  .app > h1,.controls,.panel:not(.print-panel){display:none !important}
+  .app{max-width:none;margin:0;padding:0}
+  .print-panel{border:none;box-shadow:none;padding:0;margin:0}
+  .preview{border:none;padding:0}
+  .ex{page-break-inside:avoid}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>Generador de tareas de deducción natural</h1>
+
+  <div class="panel controls">
+    <h2>Banco de ejercicios</h2>
+    <div class="row">
+      <div style="flex:1;min-width:300px">
+        <label for="sheetUrl">Google Sheets publicado como CSV</label>
+        <input id="sheetUrl" type="text">
+      </div>
+      <button id="loadBtn" class="primary">Actualizar banco</button>
+    </div>
+    <div id="bankStatus" class="status">Banco no cargado.</div>
+    <div class="file-fallback small">
+      Si el navegador bloquea la lectura del Sheet, puedes usar un CSV descargado:
+      <input id="csvFile" type="file" accept=".csv,text/csv">
+    </div>
+  </div>
+
+  <div class="grid2 controls">
+    <div class="panel">
+      <h2>Encabezado</h2>
+      <label>Título</label>
+      <input id="taskTitle" type="text" value="Ejercicios de deducción natural">
+
+      <div style="height:10px"></div>
+      <div class="row">
+        <label><input id="includeName" type="checkbox" checked> Nombre</label>
+        <label><input id="includeSubject" type="checkbox" checked> Materia</label>
+        <label><input id="includeDate" type="checkbox"> Fecha</label>
+        <label><input id="includeGroup" type="checkbox"> Grupo</label>
+      </div>
+
+      <div style="height:10px"></div>
+      <label>Materia</label>
+      <input id="subject" list="subjects" type="text" value="Lógica 1">
+      <datalist id="subjects">
+        <option value="Lógica 1">
+        <option value="Lógica 2">
+        <option value="Lógica 3">
+        <option value="Teoría del conocimiento">
+      </datalist>
+
+      <div style="height:10px"></div>
+      <label>Grupo</label>
+      <input id="group" type="text" placeholder="Opcional">
+    </div>
+
+    <div class="panel">
+      <h2>Ejercicios</h2>
+      <div class="row">
+        <label>Número <input id="numExercises" type="number" min="1" max="100" value="10" style="width:80px"></label>
+        <label>Preset
+          <select id="preset">
+            <option>Equilibrada</option>
+            <option>Fácil</option>
+            <option>Difícil</option>
+            <option>Personalizada</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="dist" id="dist"></div>
+      <div id="distSummary" class="small" style="margin-top:8px"></div>
+
+      <div style="height:10px"></div>
+      <label><input type="radio" name="order" value="difficulty" checked> Ordenar de fácil a difícil</label><br>
+      <label><input type="radio" name="order" value="random"> Mezclar aleatoriamente</label>
+    </div>
+  </div>
+
+  <div class="panel controls">
+    <h2>Notación y formato</h2>
+    <div class="notation">
+      <label>Conjunción<input id="nAND" type="text" value="∧"></label>
+      <label>Disyunción<input id="nOR" type="text" value="∨"></label>
+      <label>Negación<input id="nNOT" type="text" value="¬"></label>
+      <label>Condicional<input id="nIMP" type="text" value="→"></label>
+      <label>Bicondicional<input id="nIFF" type="text" value="↔"></label>
+      <label>Consecuencia<input id="nTURN" type="text" value="⊢"></label>
+    </div>
+    <div style="height:10px"></div>
+    <label><input id="removeOuter" type="checkbox" checked> Quitar un par de paréntesis externos por fórmula</label>
+  </div>
+
+  <div class="panel controls">
+    <div class="row">
+      <button id="generateBtn" class="primary">Generar / volver a sortear</button>
+      <button id="copyBtn">Copiar</button>
+      <button id="printBtn">Imprimir / guardar PDF</button>
+      <button id="saveHtmlBtn">Guardar HTML</button>
+    </div>
+  </div>
+
+  <div class="panel print-panel">
+    <h2 class="controls">Vista previa</h2>
+    <div id="preview" class="preview">
+      <div class="small">Carga el banco y genera una tarea.</div>
+    </div>
+  </div>
+</div>
+
+<script>
+const DEFAULT_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRYEd7f0tBSs65UEJd07q4HC0awWgOJpgEZwH0Hk6huE0nID9BWzozhLpYnX_lCjUkrNq8OYyGVroJJ/pub?output=csv";
+
+const PRESETS = {
+  "Fácil":[25,35,25,10,5],
+  "Equilibrada":[10,20,40,20,10],
+  "Difícil":[5,10,25,35,25]
+};
+
+let bank = [];
+let currentSelection = [];
+
+const $ = id => document.getElementById(id);
+$("sheetUrl").value = localStorage.getItem("sheetUrl") || DEFAULT_URL;
+
+function savePrefs(){
+  const prefs = {
+    sheetUrl:$("sheetUrl").value,
+    subject:$("subject").value,
+    taskTitle:$("taskTitle").value,
+    notation:{
+      AND:$("nAND").value, OR:$("nOR").value, NOT:$("nNOT").value,
+      IMP:$("nIMP").value, IFF:$("nIFF").value, TURN:$("nTURN").value
+    }
+  };
+  localStorage.setItem("taskGeneratorPrefs", JSON.stringify(prefs));
+  localStorage.setItem("sheetUrl", prefs.sheetUrl);
+}
+function restorePrefs(){
+  try{
+    const p = JSON.parse(localStorage.getItem("taskGeneratorPrefs")||"{}");
+    if(p.subject) $("subject").value=p.subject;
+    if(p.taskTitle) $("taskTitle").value=p.taskTitle;
+    if(p.notation){
+      if(p.notation.AND) $("nAND").value=p.notation.AND;
+      if(p.notation.OR) $("nOR").value=p.notation.OR;
+      if(p.notation.NOT) $("nNOT").value=p.notation.NOT;
+      if(p.notation.IMP) $("nIMP").value=p.notation.IMP;
+      if(p.notation.IFF) $("nIFF").value=p.notation.IFF;
+      if(p.notation.TURN) $("nTURN").value=p.notation.TURN;
+    }
+  }catch(e){}
+}
+restorePrefs();
+
+function buildDist(vals=[10,20,40,20,10]){
+  const box=$("dist");
+  box.innerHTML="";
+  vals.forEach((v,i)=>{
+    const d=document.createElement("div");
+    d.className="cell";
+    d.innerHTML=`<div><strong>${i+1}</strong></div><input class="pct" type="number" min="0" max="100" value="${v}"> %`;
+    box.appendChild(d);
+  });
+  [...document.querySelectorAll(".pct")].forEach(x=>x.addEventListener("input",()=>{
+    $("preset").value="Personalizada"; updateDistSummary();
+  }));
+  updateDistSummary();
+}
+buildDist();
+
+$("preset").addEventListener("change",()=>{
+  const p=$("preset").value;
+  if(PRESETS[p]) buildDist(PRESETS[p]);
+});
+$("numExercises").addEventListener("input",updateDistSummary);
+
+function getPercentages(){
+  return [...document.querySelectorAll(".pct")].map(x=>Number(x.value)||0);
+}
+function apportion(total,pcts){
+  const raw=pcts.map(p=>total*p/100);
+  const base=raw.map(Math.floor);
+  let left=total-base.reduce((a,b)=>a+b,0);
+  const idx=raw.map((x,i)=>({i,r:x-base[i]})).sort((a,b)=>b.r-a.r);
+  for(let k=0;k<left;k++) base[idx[k%idx.length].i]++;
+  return base;
+}
+function updateDistSummary(){
+  const n=Math.max(1,Number($("numExercises").value)||1);
+  const p=getPercentages();
+  if(p.reduce((a,b)=>a+b,0)!==100){
+    $("distSummary").textContent=`Los porcentajes suman ${p.reduce((a,b)=>a+b,0)}%; deben sumar 100%.`;
+    return;
+  }
+  $("distSummary").textContent=`Para ${n} ejercicios: ${apportion(n,p).join(" · ")}`;
+}
+
+function parseCSV(text){
+  const rows=[]; let row=[]; let cell=""; let q=false;
+  for(let i=0;i<text.length;i++){
+    const ch=text[i];
+    if(q){
+      if(ch==='"' && text[i+1]==='"'){ cell+='"'; i++; }
+      else if(ch==='"') q=false;
+      else cell+=ch;
+    }else{
+      if(ch==='"') q=true;
+      else if(ch===','){ row.push(cell); cell=""; }
+      else if(ch==='\n'){ row.push(cell); rows.push(row); row=[]; cell=""; }
+      else if(ch!=='\r') cell+=ch;
+    }
+  }
+  row.push(cell); if(row.some(x=>x!=="")) rows.push(row);
+  return rows;
+}
+function normHeader(s){
+  return s.normalize("NFD").replace(/[\u0300-\u036f]/g,"").trim().toLowerCase();
+}
+function loadBankFromText(text){
+  const rows=parseCSV(text);
+  if(!rows.length) throw new Error("El CSV está vacío.");
+  const headers=rows[0].map(normHeader);
+  const find=(names)=>{
+    const ns=names.map(normHeader);
+    let idx=headers.findIndex(h=>ns.includes(h));
+    if(idx<0) idx=headers.findIndex(h=>ns.some(n=>h.includes(n)));
+    return idx;
+  };
+  const idIdx=find(["Identificador","ID"]);
+  const exIdx=find(["Ejercicio","Problema","Fórmula","Formula"]);
+  const diffIdx=find(["Dificultad","Dificultad (1-5)","Nivel"]);
+  const activeIdx=find(["Activo","Activa","Usar"]);
+  if(exIdx<0 || diffIdx<0) throw new Error("No encuentro las columnas Ejercicio y Dificultad.");
+
+  const warnings=[]; const out=[];
+  rows.slice(1).forEach((r,ri)=>{
+    if(!r.some(c=>String(c).trim())) return;
+    const cell=i => (i>=0 && i<r.length ? String(r[i]).trim() : "");
+    const ident=cell(idIdx)||`fila-${ri+2}`;
+    const exercise=cell(exIdx);
+    const diff=Number(cell(diffIdx));
+    const active=normHeader(cell(activeIdx));
+    if(activeIdx>=0 && ["no","n","false","0","inactivo","inactiva"].includes(active)) return;
+    if(!exercise){warnings.push(`${ident}: ejercicio vacío`); return;}
+    if(!Number.isInteger(diff)||diff<1||diff>5){warnings.push(`${ident}: dificultad inválida`);return;}
+    out.push({ident,text:exercise,difficulty:diff});
+  });
+  if(!out.length) throw new Error("No encontré ejercicios válidos.");
+  bank=out;
+  const counts=[1,2,3,4,5].map(d=>out.filter(e=>e.difficulty===d).length);
+  setStatus(`${out.length} ejercicios cargados · ${counts.map((n,i)=>`${i+1}:${n}`).join(" · ")}${warnings.length?` · ${warnings.length} advertencia(s)`:""}`,"ok");
+}
+function setStatus(msg,type=""){
+  const el=$("bankStatus"); el.textContent=msg; el.className="status "+type;
+}
+async function loadRemote(){
+  const url=$("sheetUrl").value.trim();
+  if(!url) return setStatus("Pega la URL CSV.","err");
+  setStatus("Cargando…");
+  try{
+    const res=await fetch(url,{cache:"no-store"});
+    if(!res.ok) throw new Error(`HTTP ${res.status}`);
+    const text=await res.text();
+    loadBankFromText(text);
+    savePrefs();
+  }catch(e){
+    setStatus("No pude leer el banco desde Google Sheets. Prueba con el archivo CSV local. "+e.message,"err");
+  }
+}
+$("loadBtn").addEventListener("click",loadRemote);
+$("csvFile").addEventListener("change",async ev=>{
+  const f=ev.target.files?.[0]; if(!f) return;
+  try{ loadBankFromText(await f.text()); }
+  catch(e){ setStatus(e.message,"err"); }
+});
+
+const M={
+  AND:"§AND§", OR:"§OR§", NOT:"§NOT§", IMP:"§IMP§", IFF:"§IFF§", TURN:"§TURN§"
+};
+function normalizeNotation(s){
+  let x=s.trim();
+  const words=[
+    [/\bIFF\b/gi,M.IFF],[/\bIMP\b/gi,M.IMP],[/\bAND\b/gi,M.AND],
+    [/\bOR\b/gi,M.OR],[/\bNOT\b/gi,M.NOT]
+  ];
+  words.forEach(([r,v])=>x=x.replace(r,v));
+  [
+    ["<->",M.IFF],["<=>",M.IFF],["|-",M.TURN],["->",M.IMP],["=>",M.IMP],
+    ["↔",M.IFF],["≡",M.IFF],["⊢",M.TURN],["→",M.IMP],["⊃",M.IMP],
+    ["∧",M.AND],["&",M.AND],["^",M.AND],["∨",M.OR],["¬",M.NOT],["~",M.NOT]
+  ].forEach(([a,b])=>x=x.split(a).join(b));
+  x=x.split("|").join(M.OR);
+  x=x.replace(/([A-Z\)])\s*v\s*(?=[A-Z(~¬§])/g,(m,a)=>a+M.OR);
+  return x;
+}
+function outputMap(){
+  return {AND:$("nAND").value,OR:$("nOR").value,NOT:$("nNOT").value,
+          IMP:$("nIMP").value,IFF:$("nIFF").value,TURN:$("nTURN").value};
+}
+function renderNotation(s){
+  let x=normalizeNotation(s), o=outputMap();
+  Object.entries(M).forEach(([k,m])=>x=x.split(m).join(o[k]));
+  x=x.replace(new RegExp(`\\s*${escapeRe(o.TURN)}\\s*`,"g"),` ${o.TURN} `);
+  x=x.replace(/\s*,\s*/g,", ").replace(/[ \t]+/g," ").trim();
+  return x;
+}
+function escapeRe(s){return s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}
+
+function wrapsAll(s){
+  s=s.trim(); if(s.length<2||s[0]!=="("||s.at(-1)!==")") return false;
+  let depth=0;
+  for(let i=0;i<s.length;i++){
+    if(s[i]==="(") depth++;
+    else if(s[i]===")"){
+      depth--; if(depth<0) return false;
+      if(depth===0 && i!==s.length-1) return false;
+    }
+  }
+  return depth===0;
+}
+function stripOne(s){s=s.trim();return wrapsAll(s)?s.slice(1,-1).trim():s}
+function stripOuterExercise(text,turn){
+  if(!text.includes(turn)) return stripOne(text);
+  const i=text.indexOf(turn);
+  const left=text.slice(0,i), right=text.slice(i+turn.length);
+  const premises=left.split(",").map(stripOne).filter(Boolean);
+  return premises.join(", ")+` ${turn} `+stripOne(right);
+}
+function formatExercise(e){
+  let s=renderNotation(e.text);
+  if($("removeOuter").checked) s=stripOuterExercise(s,outputMap().TURN);
+  return s;
+}
+
+function shuffle(a){
+  a=[...a];
+  for(let i=a.length-1;i>0;i--){
+    const j=Math.floor(Math.random()*(i+1));
+    [a[i],a[j]]=[a[j],a[i]];
+  }
+  return a;
+}
+function selectExercises(total,pcts){
+  const desired=apportion(total,pcts);
+  let chosen=[], used=new Set(), shortages=[];
+  for(let d=1;d<=5;d++){
+    const pool=shuffle(bank.filter(e=>e.difficulty===d));
+    const take=Math.min(desired[d-1],pool.length);
+    pool.slice(0,take).forEach(e=>{chosen.push(e);used.add(e.ident)});
+    if(take<desired[d-1]) shortages.push(`nivel ${d}: ${desired[d-1]-take}`);
+  }
+  if(chosen.length<total){
+    const pool=shuffle(bank.filter(e=>!used.has(e.ident)));
+    chosen.push(...pool.slice(0,total-chosen.length));
+  }
+  if(chosen.length<total) throw new Error(`El banco sólo permite seleccionar ${chosen.length} ejercicios únicos.`);
+  if(shortages.length) setStatus(`Distribución aproximada: faltaron ejercicios en ${shortages.join(", ")}.`,"warn");
+  return chosen;
+}
+function getOrder(){
+  return document.querySelector('input[name="order"]:checked').value;
+}
+function generate(){
+  if(!bank.length) return alert("Primero carga el banco.");
+  const total=Math.max(1,Number($("numExercises").value)||1);
+  const p=getPercentages();
+  if(p.reduce((a,b)=>a+b,0)!==100) return alert("Los porcentajes de dificultad deben sumar 100.");
+  try{
+    currentSelection=selectExercises(total,p);
+    if(getOrder()==="difficulty"){
+      currentSelection.sort((a,b)=>a.difficulty-b.difficulty || Math.random()-.5);
+    }else currentSelection=shuffle(currentSelection);
+    savePrefs(); renderPreview();
+  }catch(e){alert(e.message)}
+}
+$("generateBtn").addEventListener("click",generate);
+
+function renderPreview(){
+  const p=$("preview"); p.innerHTML="";
+  const title=$("taskTitle").value.trim();
+  if(title){
+    const h=document.createElement("div"); h.className="sheet-title"; h.textContent=title; p.appendChild(h);
+  }
+  if($("includeName").checked) addMeta(p,"Nombre: _________________________________________________");
+  if($("includeSubject").checked) addMeta(p,"Materia: "+$("subject").value.trim());
+  if($("includeGroup").checked) addMeta(p,"Grupo: "+($("group").value.trim()||"________________"));
+  if($("includeDate").checked) addMeta(p,"Fecha: ____________________");
+  const sep=document.createElement("div"); sep.style.height="10px"; p.appendChild(sep);
+  currentSelection.forEach((e,i)=>{
+    const d=document.createElement("div"); d.className="ex";
+    d.textContent=`${i+1}.  ${formatExercise(e)}`; p.appendChild(d);
+  });
+}
+function addMeta(parent,text){
+  const d=document.createElement("div");d.className="meta-line";d.textContent=text;parent.appendChild(d);
+}
+$("copyBtn").addEventListener("click",async()=>{
+  if(!currentSelection.length) return alert("Primero genera una tarea.");
+  const lines=[];
+  const title=$("taskTitle").value.trim(); if(title) lines.push(title,"");
+  if($("includeName").checked) lines.push("Nombre: _________________________________________________");
+  if($("includeSubject").checked) lines.push("Materia: "+$("subject").value.trim());
+  if($("includeGroup").checked) lines.push("Grupo: "+($("group").value.trim()||"________________"));
+  if($("includeDate").checked) lines.push("Fecha: ____________________");
+  lines.push("");
+  currentSelection.forEach((e,i)=>lines.push(`${i+1}.  ${formatExercise(e)}`,""));
+  try{await navigator.clipboard.writeText(lines.join("\n")); alert("Tarea copiada.");}
+  catch(e){alert("El navegador no permitió copiar automáticamente.");}
+});
+$("printBtn").addEventListener("click",()=>window.print());
+
+$("saveHtmlBtn").addEventListener("click",()=>{
+  if(!currentSelection.length) return alert("Primero genera una tarea.");
+  const content=$("preview").innerHTML;
+  const doc=`<!doctype html><html lang="es"><head><meta charset="utf-8"><title>${escapeHtml($("taskTitle").value||"Tarea")}</title>
+<style>body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;margin:2cm;font-size:13pt;line-height:1.45;color:#111}.sheet-title{font-size:18pt;font-weight:700;margin-bottom:18px}.meta-line{margin:6px 0}.ex{margin:20px 0;font-size:14pt}@page{size:Letter;margin:2cm}</style>
+</head><body>${content}</body></html>`;
+  const blob=new Blob([doc],{type:"text/html;charset=utf-8"});
+  const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="tarea_deduccion_natural.html";a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+});
+function escapeHtml(s){return s.replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m]))}
+
+// Auto-load when possible.
+loadRemote();
+</script>
+</body>
+</html>
